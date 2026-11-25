@@ -2,7 +2,12 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <script>
+    // Đặt giao diện trước khi vẽ trang để không bị nháy màu
+    try { const t = localStorage.getItem("cnxh-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
+  </script>
   <title>Ôn thi CNXHKH</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -14,6 +19,11 @@
       <a href="#exam" data-nav="exam">Thi thử</a>
       <a href="#search" data-nav="search">Tra cứu</a>
     </nav>
+    <select id="theme" aria-label="Giao diện">
+      <option value="auto">◐ Tự động</option>
+      <option value="light">☀ Sáng</option>
+      <option value="dark">☾ Tối</option>
+    </select>
   </header>
   <main id="app"><noscript>Trang cần bật JavaScript.</noscript></main>
   <script src="data.js"></script>

@@ -153,7 +153,7 @@ function home() {
     h("h1", {}, "Luyện tập"),
     h("p", { class: "muted" }, `Đã làm ${done}/${questions.length} câu, đang đúng ${right}. Chọn đáp án là biết kết quả ngay.`),
     chapterPicker(selected, update),
-    h("div", { class: "card row between" },
+    h("div", { class: "card row between setup" },
       h("div", { class: "row" }, source, check("random", "Trộn câu", false), check("mix", "Đảo đáp án", false)),
       start),
     h("button", {
@@ -173,7 +173,7 @@ function practice() {
   const picked = s.picks[q.id];
   const values = Object.entries(s.picks);
   const correct = values.filter(([id, k]) => byId.get(id).a === k).length;
-  const go = i => { s.i = Math.max(0, Math.min(s.list.length - 1, i)); practice(); };
+  const go = i => { s.i = Math.max(0, Math.min(s.list.length - 1, i)); practice(); window.scrollTo(0, 0); };
   s.pick = k => {
     if (s.picks[q.id]) return;
     s.picks[q.id] = k;
@@ -189,11 +189,12 @@ function practice() {
       h("span", {}, `${s.i + 1}/${s.list.length}`),
       h("span", {}, `Đúng ${correct}/${values.length}`)),
     questionCard(q, s.order, { picked, reveal: !!picked, onPick: s.pick }),
-    h("div", { class: "row between" },
+    h("div", { class: "row between actions" },
       h("button", { onclick: s.prev, disabled: s.i === 0 }, "← Trước"),
       h("button", { onclick: () => { session = null; home(); } }, "Kết thúc"),
       h("button", { class: "primary", onclick: s.next, disabled: s.i === s.list.length - 1 }, "Tiếp →")),
-    h("p", { class: "muted" }, "Phím tắt: A–D hoặc 1–4 để chọn, ← → hoặc Enter để chuyển câu."),
+    h("p", { class: "muted keys" }, "Phím tắt: A–D hoặc 1–4 để chọn, ← → hoặc Enter để chuyển câu."),
+    h("p", { class: "muted swipe" }, "Vuốt trái hoặc phải để chuyển câu."),
   );
 }
 
@@ -235,7 +236,7 @@ function examSetup() {
     h("h1", {}, "Thi thử"),
     h("p", { class: "muted" }, "Câu hỏi lấy ngẫu nhiên theo tỉ lệ từng chương. Đáp án chỉ hiện sau khi nộp bài."),
     chapterPicker(selected, () => { store.opts.chapters = [...selected]; save(); start.disabled = !selected.size; }),
-    h("div", { class: "card row between" },
+    h("div", { class: "card row between setup" },
       h("div", { class: "row" },
         h("label", {}, "Số câu ", count),
         h("label", {}, "Phút (0 = không giới hạn) ", minutes),
@@ -254,7 +255,7 @@ function exam() {
   const s = session;
   if (s.end && Date.now() >= s.end) return submit();
   const q = s.list[s.i];
-  const go = i => { s.i = Math.max(0, Math.min(s.list.length - 1, i)); exam(); };
+  const go = i => { s.i = Math.max(0, Math.min(s.list.length - 1, i)); exam(); window.scrollTo(0, 0); };
   s.order = s.orders[q.id];
   s.pick = k => { s.picks[q.id] = k; exam(); };
   s.next = () => go(s.i + 1);
@@ -273,7 +274,7 @@ function exam() {
         },
       }, "Nộp bài")),
     questionCard(q, s.order, { picked: s.picks[q.id], reveal: false, onPick: s.pick, label: `${s.i + 1}/${s.list.length}` }),
-    h("div", { class: "row between" },
+    h("div", { class: "row between actions" },
       h("button", { onclick: s.prev, disabled: s.i === 0 }, "← Trước"),
       h("button", { onclick: () => { if (confirm("Hủy bài thi này?")) { session = null; examSetup(); } } }, "Hủy bài"),
       h("button", { onclick: s.next, disabled: s.i === s.list.length - 1 }, "Tiếp →")),
@@ -346,15 +347,50 @@ function route() {
 }
 addEventListener("hashchange", route);
 
-document.addEventListener("keydown", e => {
+function inSession() {
   const page = location.hash.slice(1) || "home";
-  const active = session && ((session.type === "practice" && page === "home") || (session.type === "exam" && page === "exam"));
-  if (!active || e.ctrlKey || e.metaKey || e.altKey) return;
+  return !!session && ((session.type === "practice" && page === "home") || (session.type === "exam" && page === "exam"));
+}
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT") return;
+  if (!inSession() || e.ctrlKey || e.metaKey || e.altKey) return;
   const i = "abcd".indexOf(e.key.toLowerCase()) >= 0 ? "abcd".indexOf(e.key.toLowerCase()) : "1234".indexOf(e.key);
   if (i >= 0 && session.order[i]) session.pick(session.order[i]);
   else if (e.key === "ArrowRight" || (e.key === "Enter" && e.target === document.body)) session.next();
   else if (e.key === "ArrowLeft") session.prev();
 });
+
+// Vuốt ngang để chuyển câu
+let touch = null;
+document.addEventListener("touchstart", e => {
+  touch = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+}, { passive: true });
+document.addEventListener("touchend", e => {
+  if (!touch || !inSession()) return;
+  const dx = e.changedTouches[0].clientX - touch.x;
+  const dy = e.changedTouches[0].clientY - touch.y;
+  touch = null;
+  if (Math.abs(dx) < 70 || Math.abs(dx) < 2 * Math.abs(dy)) return;
+  if (dx < 0) session.next(); else session.prev();
+}, { passive: true });
+
+// ---------- Giao diện sáng / tối ----------
+const themeSelect = document.getElementById("theme");
+const darkQuery = matchMedia("(prefers-color-scheme: dark)");
+function applyTheme(value) {
+  if (value === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = value;
+  // Đổi màu thanh trạng thái của điện thoại theo giao diện
+  document.querySelector('meta[name="theme-color"]').content =
+    getComputedStyle(document.documentElement).getPropertyValue("--card").trim();
+}
+try { themeSelect.value = localStorage.getItem("cnxh-theme") || "auto"; } catch { themeSelect.value = "auto"; }
+themeSelect.addEventListener("change", () => {
+  try { localStorage.setItem("cnxh-theme", themeSelect.value); } catch { /* bỏ qua */ }
+  applyTheme(themeSelect.value);
+});
+darkQuery.addEventListener("change", () => applyTheme(themeSelect.value));
+applyTheme(themeSelect.value);
 
 setInterval(() => {
   if (session?.type !== "exam" || !session.end) return;
